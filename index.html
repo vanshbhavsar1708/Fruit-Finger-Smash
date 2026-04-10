@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
+  <title>Fruit Finger Smash</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Exo+2:wght@500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --font-display: 'Bricolage Grotesque', sans-serif;
+      --font-body: 'Exo 2', sans-serif;
+      --bg-1: #12090a;
+      --bg-2: #2a1215;
+      --panel: rgba(24, 10, 13, 0.72);
+      --panel-border: rgba(255, 187, 107, 0.35);
+      --text: #fff4df;
+      --muted: #ffce8b;
+      --accent: #ff9f43;
+      --danger: #ff5f5f;
+      --good: #88ff9d;
+      --shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      overflow: hidden;
+      background: radial-gradient(circle at top, #4a1f25 0%, #1d0d10 40%, #080406 100%);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 16px;
+    }
+
+    #game {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    video {
+      position: absolute;
+      right: 0.7rem;
+      top: 0.7rem;
+      width: clamp(112px, 22vw, 160px);
+      height: calc(clamp(112px, 22vw, 160px) * 0.7);
+      object-fit: cover;
+      border-radius: 0.8rem;
+      border: 1px solid rgba(255, 208, 145, 0.45);
+      box-shadow: var(--shadow);
+      transform: scaleX(-1);
+      opacity: 0.9;
+      background: #000;
+      z-index: 4;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none;
+      padding: clamp(0.6rem, 2.5vw, 1rem);
+      gap: 0.6rem;
+    }
+
+    .hud {
+      pointer-events: auto;
+      margin-right: clamp(118px, 23vw, 170px);
+      display: grid;
+      grid-template-columns: repeat(4, minmax(70px, 1fr));
+      gap: 0.45rem;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.9rem;
+      padding: 0.45rem;
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+    }
+
+    .stat {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 205, 142, 0.28);
+      border-radius: 0.65rem;
+      padding: 0.4rem 0.25rem;
+      text-align: center;
+      min-height: 3.4rem;
+    }
+
+    .label {
+      font-size: clamp(0.62rem, 2.5vw, 0.72rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      line-height: 1.1;
+    }
+
+    .value {
+      margin-top: 0.1rem;
+      font-size: clamp(0.95rem, 3.8vw, 1.2rem);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+
+    .actions {
+      pointer-events: auto;
+      display: flex;
+      justify-content: center;
+      gap: 0.55rem;
+    }
+
+    button {
+      min-height: 44px;
+      border: 1px solid rgba(255, 227, 174, 0.45);
+      border-radius: 999px;
+      padding: 0.7rem 1.1rem;
+      background: rgba(33, 12, 16, 0.82);
+      color: var(--text);
+      font: 700 0.85rem/1 var(--font-body);
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform 140ms ease, background 140ms ease;
+      min-width: 136px;
+    }
+
+    button:hover,
+    button:focus-visible {
+      transform: translateY(-1px);
+      background: rgba(62, 20, 24, 0.92);
+      outline: none;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .primary {
+      background: linear-gradient(135deg, #ff8e30, #ff4d4d);
+      border-color: rgba(255, 240, 210, 0.65);
+    }
+
+    .centerMessage {
+      position: absolute;
+      inset: 50% auto auto 50%;
+      transform: translate(-50%, -50%);
+      z-index: 6;
+      max-width: min(88vw, 24rem);
+      text-align: center;
+      background: rgba(22, 8, 11, 0.86);
+      border: 1px solid rgba(255, 196, 125, 0.4);
+      border-radius: 1rem;
+      padding: 1rem 1.05rem;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(9px);
+    }
+
+    .centerMessage[hidden] { display: none; }
+
+    .centerMessage h2 {
+      margin: 0;
+      font: 800 clamp(1.15rem, 5vw, 1.7rem)/1.1 var(--font-display);
+      letter-spacing: 0.01em;
+    }
+
+    .centerMessage p {
+      margin: 0.5rem 0 0;
+      color: #ffd79f;
+      font-size: clamp(0.85rem, 3.4vw, 1rem);
+      line-height: 1.45;
+    }
+
+    @media (max-width: 560px) {
+      .hud {
+        margin-right: 0;
+        margin-top: 4rem;
+      }
+
+      video {
+        width: 102px;
+        height: 71px;
+      }
+
+      .actions {
+        justify-content: stretch;
+      }
+
+      button {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+
+    @media (max-height: 540px) and (orientation: landscape) {
+      .hud {
+        grid-template-columns: repeat(2, minmax(90px, 1fr));
+        margin-right: 8.5rem;
+      }
+
+      .centerMessage {
+        max-width: 60vw;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <video id="vid" playsinline muted></video>
+
+  <div class="overlay">
+    <section class="hud" aria-label="Game stats">
+      <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Combo</div><div class="value" id="combo">x0</div></div>
+      <div class="stat"><div class="label">Streak</div><div class="value" id="streak">0</div></div>
+      <div class="stat"><div class="label">Status</div><div class="value" id="status">Scanning</div></div>
+    </section>
+
+    <section class="actions">
+      <button id="restartBtn" class="primary" type="button">Restart</button>
+    </section>
+  </div>
+
+  <div id="message" class="centerMessage">
+    <h2>Show Your Hand</h2>
+    <p>Point your index finger and swipe fast to smash the fruits.</p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const vid = document.getElementById('vid');
+
+    const scoreEl = document.getElementById('score');
+    const comboEl = document.getElementById('combo');
+    const streakEl = document.getElementById('streak');
+    const statusEl = document.getElementById('status');
+    const messageEl = document.getElementById('message');
+    const restartBtn = document.getElementById('restartBtn');
+
+    let cw = 0;
+    let ch = 0;
+    let score = 0;
+    let level = 1;
+    let combo = 0;
+    let streak = 0;
+    let started = false;
+    let handVisible = false;
+    let cameraReady = true;
+
+    let fruits = [];
+    let particles = [];
+    let slashTrail = [];
+
+    let lastSpawn = 0;
+    let lastTime = 0;
+    let lastSliceAt = 0;
+
+    const fruitPalette = [
+      { body: '#ff4a4a', shine: '#ff9f9f', rind: '#a01f1f' },
+      { body: '#ffb03a', shine: '#ffe29d', rind: '#c86b12' },
+      { body: '#92df4b', shine: '#ddffab', rind: '#4f9d24' },
+      { body: '#ef66ff', shine: '#ffb4ff', rind: '#9835a8' },
+      { body: '#ff6f9f', shine: '#ffd0df', rind: '#ad2d57' }
+    ];
+
+    const finger = {
+      x: 0,
+      y: 0,
+      prevX: 0,
+      prevY: 0,
+      speed: 0,
+      active: false
+    };
+
+    function resize() {
+      cw = canvas.width = window.innerWidth;
+      ch = canvas.height = window.innerHeight;
+      if (!finger.active) {
+        finger.x = cw * 0.5;
+        finger.y = ch * 0.65;
+        finger.prevX = finger.x;
+        finger.prevY = finger.y;
+      }
+    }
+
+    function resetGame() {
+      score = 0;
+      level = 1;
+      combo = 0;
+      streak = 0;
+      started = false;
+      fruits = [];
+      particles = [];
+      slashTrail = [];
+      lastSpawn = 0;
+      lastSliceAt = 0;
+      updateHud();
+      showMessage('Show Your Hand', 'Point index finger and swipe quickly to smash fruits.');
+    }
+
+    function updateHud() {
+      scoreEl.textContent = String(score);
+      comboEl.textContent = 'x' + combo;
+      streakEl.textContent = String(streak);
+      statusEl.textContent = cameraReady ? (handVisible ? 'Slicing' : 'Scanning') : 'Camera Off';
+    }
+
+    function showMessage(title, text) {
+      messageEl.hidden = false;
+      messageEl.innerHTML = '<h2>' + title + '</h2><p>' + text + '</p>';
+    }
+
+    function hideMessage() {
+      if (started && handVisible) messageEl.hidden = true;
+    }
+
+    function spawnWave(now) {
+      const burstCount = 1 + Math.floor(Math.random() * Math.min(3, 1 + level * 0.22));
+      for (let i = 0; i < burstCount; i++) {
+        const bombChance = Math.min(0.16, 0.04 + level * 0.012);
+        const bomb = Math.random() < bombChance;
+        const color = fruitPalette[(Math.random() * fruitPalette.length) | 0];
+        const x = 70 + Math.random() * Math.max(120, cw - 140);
+        const y = ch + 30;
+        const vx = (Math.random() - 0.5) * 220 + (i - burstCount / 2) * 26;
+        const vy = -(640 + Math.random() * 200 + level * 28);
+        const r = bomb ? 24 : Math.random() * 10 + 24;
+        fruits.push({
+          x,
+          y,
+          vx,
+          vy,
+          r,
+          bomb,
+          color,
+          rot: Math.random() * Math.PI * 2,
+          spin: (Math.random() - 0.5) * 4,
+          stamped: false
+        });
+      }
+
+      const dynamicGap = Math.max(320, 850 - level * 28);
+      lastSpawn = now + Math.random() * 140;
+      return dynamicGap;
+    }
+
+    function makeJuice(x, y, tint, intensity) {
+      const count = Math.max(10, intensity);
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 420,
+          vy: (Math.random() - 0.5) * 420 - 40,
+          life: Math.random() * 0.5 + 0.35,
+          size: Math.random() * 6 + 2,
+          color: tint
+        });
+      }
+    }
+
+    function lineHitsCircle(x1, y1, x2, y2, cx, cy, r) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const lenSq = dx * dx + dy * dy;
+      if (!lenSq) return Math.hypot(cx - x1, cy - y1) <= r;
+      let t = ((cx - x1) * dx + (cy - y1) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      const px = x1 + dx * t;
+      const py = y1 + dy * t;
+      return Math.hypot(cx - px, cy - py) <= r;
+    }
+
+    function sliceFruit(index, now) {
+      const fruit = fruits[index];
+      fruits.splice(index, 1);
+
+      if (fruit.bomb) {
+        makeJuice(fruit.x, fruit.y, 'rgba(255,96,96,0.9)', 42);
+        combo = 0;
+        streak = 0;
+        score = Math.max(0, score - 20);
+        updateHud();
+        return;
+      }
+
+      const elapsed = now - lastSliceAt;
+      if (elapsed > 650) combo = 0;
+      combo += 1;
+      streak += 1;
+      const gained = 10 + Math.min(40, combo * 2);
+      score += gained;
+      level = Math.max(level, 1 + Math.floor(score / 180));
+      lastSliceAt = now;
+
+      makeJuice(fruit.x, fruit.y, fruit.color.body, 28 + Math.min(20, combo));
+      makeJuice(fruit.x, fruit.y, 'rgba(255,255,255,0.7)', 8);
+      updateHud();
+    }
+
+    function drawBackground(time) {
+      ctx.clearRect(0, 0, cw, ch);
+      const grad = ctx.createLinearGradient(0, 0, 0, ch);
+      grad.addColorStop(0, '#3c171f');
+      grad.addColorStop(0.32, '#2a1015');
+      grad.addColorStop(1, '#13080b');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, cw, ch);
+
+      const g1 = ctx.createRadialGradient(cw * 0.22, ch * 0.24, 20, cw * 0.22, ch * 0.24, cw * 0.52);
+      g1.addColorStop(0, 'rgba(255,140,87,0.22)');
+      g1.addColorStop(1, 'rgba(255,140,87,0)');
+      ctx.fillStyle = g1;
+      ctx.fillRect(0, 0, cw, ch);
+
+      const g2 = ctx.createRadialGradient(cw * 0.8, ch * 0.72, 30, cw * 0.8, ch * 0.72, cw * 0.4);
+      g2.addColorStop(0, 'rgba(255,76,95,0.18)');
+      g2.addColorStop(1, 'rgba(255,76,95,0)');
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, cw, ch);
+
+      ctx.strokeStyle = 'rgba(255,188,106,0.06)';
+      ctx.lineWidth = 1;
+      const stride = 42;
+      const drift = (time * 0.02) % stride;
+      for (let y = -stride; y < ch + stride; y += stride) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + drift);
+        ctx.lineTo(cw, y + drift + 20);
+        ctx.stroke();
+      }
+    }
+
+    function drawFruit(fruit) {
+      ctx.save();
+      ctx.translate(fruit.x, fruit.y);
+      ctx.rotate(fruit.rot);
+
+      if (fruit.bomb) {
+        const bombGrad = ctx.createRadialGradient(-8, -10, 4, 0, 0, fruit.r + 8);
+        bombGrad.addColorStop(0, '#aeb0b5');
+        bombGrad.addColorStop(0.55, '#36373d');
+        bombGrad.addColorStop(1, '#131317');
+        ctx.fillStyle = bombGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, fruit.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffe29f';
+        ctx.beginPath();
+        ctx.arc(0, -fruit.r - 2, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#ffc266';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -fruit.r + 1);
+        ctx.quadraticCurveTo(-3, -fruit.r - 8, 0, -fruit.r - 12);
+        ctx.stroke();
+      } else {
+        const fruitGrad = ctx.createRadialGradient(-fruit.r * 0.32, -fruit.r * 0.36, 4, 0, 0, fruit.r + 6);
+        fruitGrad.addColorStop(0, fruit.color.shine);
+        fruitGrad.addColorStop(0.6, fruit.color.body);
+        fruitGrad.addColorStop(1, fruit.color.rind);
+        ctx.fillStyle = fruitGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, fruit.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.26)';
+        ctx.beginPath();
+        ctx.ellipse(-fruit.r * 0.24, -fruit.r * 0.24, fruit.r * 0.2, fruit.r * 0.1, -0.6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#7fd24f';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -fruit.r + 2);
+        ctx.quadraticCurveTo(2, -fruit.r - 10, 8, -fruit.r - 10);
+        ctx.stroke();
+
+        ctx.fillStyle = '#7fd24f';
+        ctx.beginPath();
+        ctx.ellipse(9, -fruit.r - 10, 6, 3.8, 0.45, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function drawTrail() {
+      if (slashTrail.length < 2) return;
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (let i = 1; i < slashTrail.length; i++) {
+        const p1 = slashTrail[i - 1];
+        const p2 = slashTrail[i];
+        const alpha = i / slashTrail.length;
+
+        ctx.strokeStyle = 'rgba(255,246,228,' + (0.1 + alpha * 0.65).toFixed(3) + ')';
+        ctx.lineWidth = 2 + alpha * 9;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(255,128,90,' + (0.08 + alpha * 0.5).toFixed(3) + ')';
+        ctx.lineWidth = 1 + alpha * 5;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+
+      const tip = slashTrail[slashTrail.length - 1];
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+        p.vy += 460 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+
+        ctx.globalAlpha = Math.max(0, p.life * 1.25);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * Math.max(0.22, p.life), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function processSlicing(now) {
+      if (!finger.active || !slashTrail.length) return;
+      if (slashTrail.length < 2) return;
+
+      const p1 = slashTrail[slashTrail.length - 2];
+      const p2 = slashTrail[slashTrail.length - 1];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const segLen = Math.hypot(dx, dy);
+
+      if (segLen < 6 || finger.speed < 220) return;
+
+      for (let i = fruits.length - 1; i >= 0; i--) {
+        const f = fruits[i];
+        const hitRadius = f.r + Math.min(10, segLen * 0.22);
+        if (lineHitsCircle(p1.x, p1.y, p2.x, p2.y, f.x, f.y, hitRadius)) {
+          sliceFruit(i, now);
+        }
+      }
+    }
+
+    function tick(time) {
+      const dt = Math.min(0.04, (time - lastTime) / 1000 || 0.016);
+      lastTime = time;
+
+      drawBackground(time);
+
+      if (handVisible) {
+        started = true;
+        hideMessage();
+      }
+
+      if (started) {
+        const spawnGap = Math.max(320, 860 - level * 30);
+        if (time - lastSpawn > spawnGap) {
+          spawnWave(time);
+        }
+
+        for (let i = fruits.length - 1; i >= 0; i--) {
+          const f = fruits[i];
+          f.vy += 980 * dt;
+          f.x += f.vx * dt;
+          f.y += f.vy * dt;
+          f.rot += f.spin * dt;
+          drawFruit(f);
+
+          if (f.y - f.r > ch + 24) {
+            fruits.splice(i, 1);
+            if (!f.bomb) {
+              combo = 0;
+              updateHud();
+            }
+          }
+        }
+
+        if (combo > 0 && time - lastSliceAt > 780) {
+          combo = 0;
+          updateHud();
+        }
+      } else {
+        for (let i = fruits.length - 1; i >= 0; i--) drawFruit(fruits[i]);
+      }
+
+      drawTrail();
+      processSlicing(time);
+      updateParticles(dt);
+
+      if (!handVisible) {
+        showMessage('Show Your Hand', 'Move your index finger to start slicing.');
+      }
+
+      updateHud();
+      requestAnimationFrame(tick);
+    }
+
+    function updateFinger(x, y, now) {
+      if (!finger.active) {
+        finger.prevX = x;
+        finger.prevY = y;
+        finger.x = x;
+        finger.y = y;
+        finger.active = true;
+        return;
+      }
+
+      const smooth = 0.34;
+      const nx = finger.x + (x - finger.x) * smooth;
+      const ny = finger.y + (y - finger.y) * smooth;
+
+      const dx = nx - finger.x;
+      const dy = ny - finger.y;
+      finger.speed = Math.hypot(dx, dy) * 62;
+      finger.prevX = finger.x;
+      finger.prevY = finger.y;
+      finger.x = nx;
+      finger.y = ny;
+
+      slashTrail.push({ x: finger.x, y: finger.y, t: now });
+      while (slashTrail.length && now - slashTrail[0].t > 130) {
+        slashTrail.shift();
+      }
+    }
+
+    function updateFromHand(results) {
+      const now = performance.now();
+      if (!results.multiHandLandmarks || !results.multiHandLandmarks.length) {
+        handVisible = false;
+        finger.active = false;
+        slashTrail = [];
+        updateHud();
+        return;
+      }
+
+      const indexTip = results.multiHandLandmarks[0][8];
+      handVisible = true;
+      const x = (1 - indexTip.x) * cw;
+      const y = indexTip.y * ch;
+      updateFinger(x, y, now);
+      updateHud();
+    }
+
+    let pointerDown = false;
+    canvas.addEventListener('pointerdown', event => {
+      pointerDown = true;
+      handVisible = true;
+      started = true;
+      updateFinger(event.clientX, event.clientY, performance.now());
+      hideMessage();
+    });
+
+    canvas.addEventListener('pointermove', event => {
+      if (!pointerDown) return;
+      updateFinger(event.clientX, event.clientY, performance.now());
+    });
+
+    function releasePointer() {
+      pointerDown = false;
+      if (!cameraReady) handVisible = false;
+      finger.active = false;
+      slashTrail = [];
+    }
+
+    canvas.addEventListener('pointerup', releasePointer);
+    canvas.addEventListener('pointercancel', releasePointer);
+
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', event => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) event.preventDefault();
+      lastTouchEnd = now;
+    }, false);
+
+    restartBtn.addEventListener('click', resetGame);
+    window.addEventListener('resize', resize);
+
+    const hands = new Hands({
+      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 0,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
+    });
+
+    hands.onResults(updateFromHand);
+
+    const camera = new Camera(vid, {
+      onFrame: async () => { await hands.send({ image: vid }); },
+      width: 640,
+      height: 480
+    });
+
+    resize();
+    resetGame();
+    requestAnimationFrame(tick);
+
+    camera.start().catch(() => {
+      cameraReady = false;
+      showMessage('Camera Blocked', 'Allow camera access, or drag finger/mouse to test slicing.');
+      updateHud();
+    });
+  </script>
+</body>
+</html>
